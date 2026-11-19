@@ -1,0 +1,22 @@
+
+FROM rust:slim AS rust-build
+WORKDIR /src
+COPY evaluator/ ./evaluator/
+RUN cargo build --release --manifest-path evaluator/Cargo.toml
+
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS dotnet-build
+WORKDIR /src
+COPY backend/ModelBench.Api/ ./backend/ModelBench.Api/
+RUN dotnet publish backend/ModelBench.Api/ModelBench.Api.csproj \
+    -c Release -o /app/publish
+
+FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final
+WORKDIR /app
+
+COPY --from=dotnet-build /app/publish/ ./
+COPY --from=rust-build /src/evaluator/target/release/evaluator \
+    /app/evaluator/target/release/evaluator
+
+ENV ASPNETCORE_URLS=http://+:5080
+EXPOSE 5080
+ENTRYPOINT ["dotnet", "ModelBench.Api.dll"]
